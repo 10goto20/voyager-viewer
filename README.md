@@ -5,7 +5,7 @@ A standalone desktop application for exploring GraphQL schemas using
 required — the viewer opens in its own native window powered by the operating
 system's built-in web engine.
 
-![Screenshot placeholder](docs/screenshot.png)
+<img width="1514" height="881" alt="image" src="https://github.com/user-attachments/assets/09e9a10f-cda1-4b14-a2bf-09412a03c45c" />
 
 ---
 
