@@ -1,0 +1,10 @@
+# Python dependencies for voyager-viewer
+#
+# Install with:
+#   pip install -r requirements.txt
+#
+# Linux users also need the WebKitGTK system package:
+#   sudo apt install python3-gi gir1.2-webkit2-4.1
+#   (or gir1.2-webkit2-4.0 on older distributions)
+
+pywebview>=4.0

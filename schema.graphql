@@ -1,0 +1,970 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Library Management API — sample schema for GraphQL Voyager
+# ─────────────────────────────────────────────────────────────────────────────
+
+"An ISO-8601 encoded UTC datetime string."
+scalar DateTime
+
+"An RFC 3986 compliant URL string."
+scalar URL
+
+schema {
+  query:        Query
+  mutation:     Mutation
+  subscription: Subscription
+}
+
+# ── Root types ────────────────────────────────────────────────────────────────
+
+"The root query type. All read operations begin here."
+type Query {
+  "Fetch a single book by its unique identifier."
+  book(
+    "The unique identifier of the book to retrieve."
+    id: ID!
+  ): Book
+
+  "Retrieve a paginated, optionally filtered and sorted list of books."
+  books(
+    "Optional filter criteria to narrow the result set."
+    filter: BookFilter
+    "Optional sort order for the result set."
+    sort: BookSort
+    "Pagination arguments."
+    page: PageInput
+  ): BookConnection!
+
+  "Full-text search across book titles, synopses, and author names."
+  searchBooks(
+    "The search string to match against."
+    query: String!
+    "Maximum number of results to return."
+    limit: Int = 10
+  ): [Book!]!
+
+  "Fetch a single author by their unique identifier."
+  author(
+    "The unique identifier of the author to retrieve."
+    id: ID!
+  ): Author
+
+  "Retrieve a paginated list of all authors."
+  authors(
+    "Pagination arguments."
+    page: PageInput
+  ): AuthorConnection!
+
+  "Fetch a single genre by its URL-safe slug."
+  genre(
+    "The URL-safe slug identifying the genre (e.g. 'science-fiction')."
+    slug: String!
+  ): Genre
+
+  "Retrieve the full list of genres, including top-level and sub-genres."
+  genres: [Genre!]!
+
+  "Return the currently authenticated user's profile."
+  me: User
+
+  "Fetch any user's public profile by their unique identifier."
+  user(
+    "The unique identifier of the user to retrieve."
+    id: ID!
+  ): User
+
+  "Fetch a single review by its unique identifier."
+  review(
+    "The unique identifier of the review to retrieve."
+    id: ID!
+  ): Review
+
+  "Return a personalised list of book recommendations for a given user."
+  recommendedBooks(
+    "The user for whom recommendations should be generated."
+    userId: ID!
+    "Maximum number of recommendations to return."
+    limit: Int = 5
+  ): [Book!]!
+}
+
+"The root mutation type. All write operations begin here."
+type Mutation {
+  "Create a new book record in the catalogue."
+  createBook(
+    "Fields required to create the book."
+    input: CreateBookInput!
+  ): BookPayload!
+
+  "Update an existing book's details."
+  updateBook(
+    "The unique identifier of the book to update."
+    id: ID!
+    "Fields to update on the book."
+    input: UpdateBookInput!
+  ): BookPayload!
+
+  "Permanently remove a book from the catalogue."
+  deleteBook(
+    "The unique identifier of the book to delete."
+    id: ID!
+  ): DeletePayload!
+
+  "Create a new author profile."
+  createAuthor(
+    "Fields required to create the author."
+    input: CreateAuthorInput!
+  ): AuthorPayload!
+
+  "Update an existing author's profile details."
+  updateAuthor(
+    "The unique identifier of the author to update."
+    id: ID!
+    "Fields to update on the author."
+    input: UpdateAuthorInput!
+  ): AuthorPayload!
+
+  "Submit a review for a book. Each user may review a given book once."
+  submitReview(
+    "Fields required to submit the review."
+    input: SubmitReviewInput!
+  ): ReviewPayload!
+
+  "Delete a review. Users may only delete their own reviews; admins may delete any."
+  deleteReview(
+    "The unique identifier of the review to delete."
+    id: ID!
+  ): DeletePayload!
+
+  "Register a new user account."
+  register(
+    "Registration details for the new account."
+    input: RegisterInput!
+  ): AuthPayload!
+
+  "Authenticate with email and password and receive an access token."
+  login(
+    "Login credentials."
+    input: LoginInput!
+  ): AuthPayload!
+
+  "Update the currently authenticated user's profile information."
+  updateProfile(
+    "Profile fields to update."
+    input: ProfileInput!
+  ): UserPayload!
+
+  "Add a book to the authenticated user's reading list."
+  addToReadingList(
+    "The unique identifier of the book to add."
+    bookId: ID!
+  ): ReadingListPayload!
+
+  "Remove a book from the authenticated user's reading list."
+  removeFromReadingList(
+    "The unique identifier of the book to remove."
+    bookId: ID!
+  ): ReadingListPayload!
+}
+
+"The root subscription type. Provides real-time event streams."
+type Subscription {
+  "Subscribe to new reviews as they are posted for a specific book."
+  reviewAdded(
+    "The unique identifier of the book to watch for new reviews."
+    bookId: ID!
+  ): Review!
+
+  "Subscribe to availability status changes for a specific book."
+  bookAvailabilityChanged(
+    "The unique identifier of the book to watch."
+    bookId: ID!
+  ): Book!
+}
+
+# ── Core domain types ─────────────────────────────────────────────────────────
+
+"""
+A book record in the catalogue.
+
+Books may have multiple authors and belong to multiple genres.
+The `rating` field reflects the live average across all submitted reviews.
+"""
+type Book {
+  "The book's unique identifier."
+  id: ID!
+
+  "The full title of the book."
+  title: String!
+
+  "The International Standard Book Number (ISBN-13 preferred)."
+  isbn: String
+
+  "A short description or back-cover synopsis of the book."
+  synopsis: String
+
+  "URL pointing to the book's cover image."
+  coverImageUrl: URL
+
+  "The date this edition was first published."
+  publishedAt: DateTime
+
+  "Total number of pages in this edition."
+  pageCount: Int
+
+  "The primary language the book is written in."
+  language: Language!
+
+  "Current availability status of this book."
+  status: BookStatus!
+
+  "Average star rating calculated from all submitted reviews. Null if no reviews exist."
+  rating: Float
+
+  "Total number of reviews that have been submitted for this book."
+  reviewCount: Int!
+
+  "All authors credited on this book."
+  authors: [Author!]!
+
+  "Genres this book is classified under."
+  genres: [Genre!]!
+
+  "The publisher responsible for this edition."
+  publisher: Publisher
+
+  "Edition details for this particular printing."
+  edition: Edition
+
+  "Paginated list of reviews submitted for this book."
+  reviews(
+    "Pagination arguments."
+    page: PageInput
+  ): ReviewConnection!
+
+  "Other books that readers of this title also enjoyed."
+  relatedBooks: [Book!]!
+}
+
+"""
+An author profile.
+
+A single author may be credited on many books, and a book may have multiple
+authors. The `fullName` field is a convenience alias for `firstName lastName`.
+"""
+type Author {
+  "The author's unique identifier."
+  id: ID!
+
+  "The author's given (first) name."
+  firstName: String!
+
+  "The author's family (last) name."
+  lastName: String!
+
+  "The author's full name, composed as 'firstName lastName'."
+  fullName: String!
+
+  "A short biographical description of the author."
+  bio: String
+
+  "URL pointing to a portrait or profile photo of the author."
+  photoUrl: URL
+
+  "The author's date of birth."
+  birthDate: DateTime
+
+  "The author's personal or official website."
+  website: URL
+
+  "Paginated list of books this author is credited on."
+  books(
+    "Pagination arguments."
+    page: PageInput
+  ): BookConnection!
+
+  "Genres most associated with this author's body of work."
+  genres: [Genre!]!
+}
+
+"""
+A genre or sub-genre classification.
+
+Genres form a tree structure — a genre may have a parent genre and zero or
+more sub-genres. For example, 'Hard Science Fiction' might be a sub-genre
+of 'Science Fiction'.
+"""
+type Genre {
+  "The genre's unique identifier."
+  id: ID!
+
+  "The human-readable genre name (e.g. 'Science Fiction')."
+  name: String!
+
+  "URL-safe slug used in routes and filters (e.g. 'science-fiction')."
+  slug: String!
+
+  "An optional description explaining the scope of the genre."
+  description: String
+
+  "Paginated list of books classified under this genre."
+  books(
+    "Pagination arguments."
+    page: PageInput
+  ): BookConnection!
+
+  "Genres that are more specific sub-categories of this genre."
+  subgenres: [Genre!]!
+
+  "The parent genre of which this genre is a sub-category, if any."
+  parentGenre: Genre
+}
+
+"A publishing company responsible for producing and distributing books."
+type Publisher {
+  "The publisher's unique identifier."
+  id: ID!
+
+  "The publisher's official company name."
+  name: String!
+
+  "The country in which the publisher is headquartered."
+  country: String
+
+  "The publisher's official website."
+  website: URL
+
+  "The year the publisher was founded."
+  founded: Int
+
+  "Paginated list of books released by this publisher."
+  books(
+    "Pagination arguments."
+    page: PageInput
+  ): BookConnection!
+
+  "Authors who have published at least one book through this publisher."
+  authors: [Author!]!
+}
+
+"A specific printed or digital edition of a book."
+type Edition {
+  "The edition's unique identifier."
+  id: ID!
+
+  "The edition number (e.g. 1 for first edition, 2 for second edition)."
+  number: Int!
+
+  "The physical or digital format of this edition."
+  format: BookFormat!
+
+  "The date this edition was published."
+  publishedAt: DateTime
+
+  "The publisher who produced this specific edition."
+  publisher: Publisher
+}
+
+"A user-submitted review of a book, including a star rating and optional written feedback."
+type Review {
+  "The review's unique identifier."
+  id: ID!
+
+  "The numeric star rating given by the reviewer."
+  rating: ReviewRating!
+
+  "An optional short headline summarising the reviewer's opinion."
+  headline: String
+
+  "The full text body of the review."
+  body: String
+
+  "The date and time the review was originally submitted."
+  createdAt: DateTime!
+
+  "The date and time the review was last edited, if it has been edited."
+  updatedAt: DateTime
+
+  "The book this review was written for."
+  book: Book!
+
+  "The user who wrote this review."
+  author: User!
+}
+
+"A registered user of the library platform."
+type User {
+  "The user's unique identifier."
+  id: ID!
+
+  "The user's unique login handle."
+  username: String!
+
+  "The user's email address. Only visible to the user themselves and admins."
+  email: String!
+
+  "An optional display name shown publicly in place of the username."
+  displayName: String
+
+  "URL pointing to the user's avatar image."
+  avatarUrl: URL
+
+  "The date and time the user account was created."
+  joinedAt: DateTime!
+
+  "The user's role, which determines their permissions on the platform."
+  role: UserRole!
+
+  "Paginated list of reviews this user has submitted."
+  reviews(
+    "Pagination arguments."
+    page: PageInput
+  ): ReviewConnection!
+
+  "The list of books this user has saved to their personal reading list."
+  readingList: [ReadingListEntry!]!
+
+  "A personalised set of book recommendations generated for this user."
+  recommendedBooks(
+    "Maximum number of recommendations to return."
+    limit: Int
+  ): [Book!]!
+}
+
+"An entry on a user's personal reading list, tracking a book and its reading status."
+type ReadingListEntry {
+  "The date and time this book was added to the reading list."
+  addedAt: DateTime!
+
+  "The user's current reading progress status for this book."
+  status: ReadingStatus!
+
+  "The book saved on the reading list."
+  book: Book!
+
+  "The user who owns this reading list entry."
+  user: User!
+}
+
+# ── Connections (cursor-based pagination) ─────────────────────────────────────
+
+"A paginated connection wrapping a list of Book results."
+type BookConnection {
+  "The list of book edges for this page."
+  edges: [BookEdge!]!
+
+  "Metadata about the current page and cursors for navigation."
+  pageInfo: PageInfo!
+
+  "The total number of books matching the current query, across all pages."
+  total: Int!
+}
+
+"A single edge in a BookConnection, pairing a cursor with a Book node."
+type BookEdge {
+  "An opaque cursor string used to paginate from this position."
+  cursor: String!
+
+  "The Book at this position in the connection."
+  node: Book!
+}
+
+"A paginated connection wrapping a list of Author results."
+type AuthorConnection {
+  "The list of author edges for this page."
+  edges: [AuthorEdge!]!
+
+  "Metadata about the current page and cursors for navigation."
+  pageInfo: PageInfo!
+
+  "The total number of authors matching the current query, across all pages."
+  total: Int!
+}
+
+"A single edge in an AuthorConnection, pairing a cursor with an Author node."
+type AuthorEdge {
+  "An opaque cursor string used to paginate from this position."
+  cursor: String!
+
+  "The Author at this position in the connection."
+  node: Author!
+}
+
+"A paginated connection wrapping a list of Review results."
+type ReviewConnection {
+  "The list of review edges for this page."
+  edges: [ReviewEdge!]!
+
+  "Metadata about the current page and cursors for navigation."
+  pageInfo: PageInfo!
+
+  "The total number of reviews matching the current query, across all pages."
+  total: Int!
+}
+
+"A single edge in a ReviewConnection, pairing a cursor with a Review node."
+type ReviewEdge {
+  "An opaque cursor string used to paginate from this position."
+  cursor: String!
+
+  "The Review at this position in the connection."
+  node: Review!
+}
+
+"Cursor-based pagination metadata returned alongside every connection type."
+type PageInfo {
+  "Whether there is at least one more page of results after this one."
+  hasNextPage: Boolean!
+
+  "Whether there is at least one more page of results before this one."
+  hasPreviousPage: Boolean!
+
+  "The cursor corresponding to the first edge on this page."
+  startCursor: String
+
+  "The cursor corresponding to the last edge on this page."
+  endCursor: String
+}
+
+# ── Payload / response types ──────────────────────────────────────────────────
+
+"The result of a create or update book mutation."
+type BookPayload {
+  "The created or updated book, or null if the operation failed."
+  book: Book
+
+  "A list of validation or business-logic errors. Empty on success."
+  errors: [UserError!]!
+}
+
+"The result of a create or update author mutation."
+type AuthorPayload {
+  "The created or updated author, or null if the operation failed."
+  author: Author
+
+  "A list of validation or business-logic errors. Empty on success."
+  errors: [UserError!]!
+}
+
+"The result of a submit or update review mutation."
+type ReviewPayload {
+  "The created or updated review, or null if the operation failed."
+  review: Review
+
+  "A list of validation or business-logic errors. Empty on success."
+  errors: [UserError!]!
+}
+
+"The result of an update profile mutation."
+type UserPayload {
+  "The updated user, or null if the operation failed."
+  user: User
+
+  "A list of validation or business-logic errors. Empty on success."
+  errors: [UserError!]!
+}
+
+"The result of a register or login mutation, containing an access token on success."
+type AuthPayload {
+  "The authenticated or newly created user, or null if the operation failed."
+  user: User
+
+  "A signed JWT access token. Null if authentication failed."
+  token: String
+
+  "A list of validation or authentication errors. Empty on success."
+  errors: [UserError!]!
+}
+
+"The result of an add or remove reading list mutation."
+type ReadingListPayload {
+  "The affected reading list entry, or null if the operation failed."
+  entry: ReadingListEntry
+
+  "A list of validation or business-logic errors. Empty on success."
+  errors: [UserError!]!
+}
+
+"The result of a delete mutation."
+type DeletePayload {
+  "The unique identifier of the deleted resource, or null if deletion failed."
+  deletedId: ID
+
+  "A list of errors that prevented deletion. Empty on success."
+  errors: [UserError!]!
+}
+
+"A structured error returned when a mutation cannot be completed."
+type UserError {
+  "The input field path that caused the error, if applicable (e.g. 'input.email')."
+  field: String
+
+  "A human-readable description of the error, suitable for display."
+  message: String!
+
+  "A machine-readable error code for programmatic error handling."
+  code: ErrorCode!
+}
+
+# ── Input types ───────────────────────────────────────────────────────────────
+
+"Input fields required to create a new book."
+input CreateBookInput {
+  "The full title of the book."
+  title: String!
+
+  "The ISBN of the book (ISBN-13 preferred)."
+  isbn: String
+
+  "A short synopsis or back-cover description."
+  synopsis: String
+
+  "URL of the book's cover image."
+  coverImageUrl: URL
+
+  "The original publication date of this edition."
+  publishedAt: DateTime
+
+  "The total number of pages in this edition."
+  pageCount: Int
+
+  "The primary language the book is written in. Defaults to English."
+  language: Language = ENGLISH
+
+  "IDs of the authors to credit on this book. At least one is required."
+  authorIds: [ID!]!
+
+  "IDs of the genres to classify this book under."
+  genreIds: [ID!]!
+
+  "The ID of the publisher responsible for this edition."
+  publisherId: ID
+}
+
+"Input fields available when updating an existing book. All fields are optional."
+input UpdateBookInput {
+  "Updated title of the book."
+  title: String
+
+  "Updated ISBN."
+  isbn: String
+
+  "Updated synopsis."
+  synopsis: String
+
+  "Updated cover image URL."
+  coverImageUrl: URL
+
+  "Updated publication date."
+  publishedAt: DateTime
+
+  "Updated page count."
+  pageCount: Int
+
+  "Updated primary language."
+  language: Language
+
+  "Updated availability status."
+  status: BookStatus
+
+  "Replacement set of author IDs. Replaces the existing list entirely."
+  authorIds: [ID!]
+
+  "Replacement set of genre IDs. Replaces the existing list entirely."
+  genreIds: [ID!]
+
+  "Updated publisher ID."
+  publisherId: ID
+}
+
+"Input fields required to create a new author profile."
+input CreateAuthorInput {
+  "The author's given (first) name."
+  firstName: String!
+
+  "The author's family (last) name."
+  lastName: String!
+
+  "A short biographical description."
+  bio: String
+
+  "URL of the author's photo."
+  photoUrl: URL
+
+  "The author's date of birth."
+  birthDate: DateTime
+
+  "The author's personal or official website."
+  website: URL
+}
+
+"Input fields available when updating an existing author. All fields are optional."
+input UpdateAuthorInput {
+  "Updated first name."
+  firstName: String
+
+  "Updated last name."
+  lastName: String
+
+  "Updated biography."
+  bio: String
+
+  "Updated photo URL."
+  photoUrl: URL
+
+  "Updated date of birth."
+  birthDate: DateTime
+
+  "Updated website URL."
+  website: URL
+}
+
+"Input fields required to submit a book review."
+input SubmitReviewInput {
+  "The ID of the book being reviewed."
+  bookId: ID!
+
+  "The star rating awarded by the reviewer."
+  rating: ReviewRating!
+
+  "An optional short headline summarising the review."
+  headline: String
+
+  "The full written body of the review."
+  body: String
+}
+
+"Input fields required to register a new user account."
+input RegisterInput {
+  "The desired unique username."
+  username: String!
+
+  "The user's email address."
+  email: String!
+
+  "The user's chosen password. Must meet minimum strength requirements."
+  password: String!
+
+  "An optional public display name."
+  displayName: String
+}
+
+"Input fields required to authenticate an existing user."
+input LoginInput {
+  "The registered email address."
+  email: String!
+
+  "The account password."
+  password: String!
+}
+
+"Input fields available when updating the authenticated user's profile."
+input ProfileInput {
+  "Updated public display name."
+  displayName: String
+
+  "Updated avatar image URL."
+  avatarUrl: URL
+}
+
+"Criteria for filtering the books query. All fields are optional and combined with AND logic."
+input BookFilter {
+  "Restrict results to books classified under this genre slug."
+  genreSlug: String
+
+  "Restrict results to books credited to this author."
+  authorId: ID
+
+  "Restrict results to books published by this publisher."
+  publisherId: ID
+
+  "Restrict results to books written in this language."
+  language: Language
+
+  "Restrict results to books with this availability status."
+  status: BookStatus
+
+  "Restrict results to books with an average rating at or above this value."
+  minRating: Float
+
+  "Restrict results to books published on or after this date."
+  publishedAfter: DateTime
+
+  "Restrict results to books published on or before this date."
+  publishedBefore: DateTime
+}
+
+"Sort configuration for the books query."
+input BookSort {
+  "The field to sort results by."
+  field: BookSortField!
+
+  "The direction of the sort. Defaults to descending."
+  direction: SortDirection = DESC
+}
+
+"Cursor-based pagination arguments. Use `first`/`after` for forward pagination or `last`/`before` for backward."
+input PageInput {
+  "Return the first N results after the given cursor."
+  first: Int
+
+  "Return results after this cursor (exclusive)."
+  after: String
+
+  "Return the last N results before the given cursor."
+  last: Int
+
+  "Return results before this cursor (exclusive)."
+  before: String
+}
+
+# ── Enums ─────────────────────────────────────────────────────────────────────
+
+"The availability status of a book in the catalogue."
+enum BookStatus {
+  "The book is in print and available to readers."
+  AVAILABLE
+
+  "The book is no longer being printed and copies may be limited."
+  OUT_OF_PRINT
+
+  "The book has been announced but is not yet available."
+  COMING_SOON
+
+  "The book has been retired from the catalogue and is hidden from public listings."
+  ARCHIVED
+}
+
+"The physical or digital format of a book edition."
+enum BookFormat {
+  "A bound book with a rigid protective cover."
+  HARDCOVER
+
+  "A bound book with a flexible paper cover."
+  PAPERBACK
+
+  "A digital file readable on e-readers and devices."
+  EBOOK
+
+  "A spoken-word recording of the book."
+  AUDIOBOOK
+}
+
+"A whole-number star rating from one to five."
+enum ReviewRating {
+  "One star — poor."
+  ONE
+
+  "Two stars — below average."
+  TWO
+
+  "Three stars — average."
+  THREE
+
+  "Four stars — good."
+  FOUR
+
+  "Five stars — excellent."
+  FIVE
+}
+
+"The primary language a book is written in."
+enum Language {
+  "English."
+  ENGLISH
+
+  "Spanish."
+  SPANISH
+
+  "French."
+  FRENCH
+
+  "German."
+  GERMAN
+
+  "Japanese."
+  JAPANESE
+
+  "Chinese (Simplified or Traditional)."
+  CHINESE
+
+  "Portuguese."
+  PORTUGUESE
+
+  "Any language not listed above."
+  OTHER
+}
+
+"A user's self-reported progress status for a book on their reading list."
+enum ReadingStatus {
+  "The user intends to read this book in the future."
+  WANT_TO_READ
+
+  "The user is actively reading this book."
+  CURRENTLY_READING
+
+  "The user has finished reading this book."
+  FINISHED
+
+  "The user started but chose not to finish this book."
+  ABANDONED
+}
+
+"The role assigned to a user account, controlling permissions on the platform."
+enum UserRole {
+  "A standard reader with no elevated permissions."
+  READER
+
+  "An author with permission to manage their own author profile."
+  AUTHOR
+
+  "A librarian with permission to manage books, authors, and genres."
+  LIBRARIAN
+
+  "A platform administrator with full access to all resources."
+  ADMIN
+}
+
+"The field by which a books query result set can be sorted."
+enum BookSortField {
+  "Sort alphabetically by title."
+  TITLE
+
+  "Sort by original publication date."
+  PUBLISHED_AT
+
+  "Sort by average reader rating."
+  RATING
+
+  "Sort by total number of reviews submitted."
+  REVIEW_COUNT
+}
+
+"The direction of a sort operation."
+enum SortDirection {
+  "Sort from lowest to highest (A→Z, oldest→newest, 1→5)."
+  ASC
+
+  "Sort from highest to lowest (Z→A, newest→oldest, 5→1)."
+  DESC
+}
+
+"Machine-readable error codes returned in UserError payloads."
+enum ErrorCode {
+  "The requested resource could not be found."
+  NOT_FOUND
+
+  "The request requires authentication."
+  UNAUTHORIZED
+
+  "The authenticated user does not have permission to perform this action."
+  FORBIDDEN
+
+  "One or more input fields failed validation."
+  VALIDATION_ERROR
+
+  "A resource with the same unique identifier or constraint already exists."
+  DUPLICATE
+
+  "An unexpected server-side error occurred."
+  INTERNAL_ERROR
+}
