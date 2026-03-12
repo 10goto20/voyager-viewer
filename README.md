@@ -199,7 +199,13 @@ https://github.com/graphql-kit/graphql-voyager/releases
 ```
 
 The files to download are `voyager.standalone.js` and `voyager.css` from the
-release assets. No other changes to `voyager_viewer.py` are required.
+release assets.
+
+> **Note:** The dark mode styles in `voyager_viewer.py` are keyed to the
+> specific CSS class names and SVG structure used in Voyager v2.0.0. A new
+> release may rename or restructure these, causing the dark theme to render
+> incorrectly. After upgrading, verify dark mode and adjust the overrides in
+> the `HTML` template string in `voyager_viewer.py` if needed.
 
 ---
 
